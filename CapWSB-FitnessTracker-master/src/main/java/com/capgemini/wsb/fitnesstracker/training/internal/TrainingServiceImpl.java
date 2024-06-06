@@ -1,48 +1,75 @@
 package com.capgemini.wsb.fitnesstracker.training.internal;
 
-import com.capgemini.wsb.fitnesstracker.training.api.Training;
-import com.capgemini.wsb.fitnesstracker.training.api.TrainingProvider;
-import com.capgemini.wsb.fitnesstracker.user.api.User;
-import com.capgemini.wsb.fitnesstracker.user.api.UserProvider;
-import lombok.AllArgsConstructor;
+import com.capgemini.wsb.fitnesstracker.training.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
-// TODO: Provide Impl
 @Service
-@AllArgsConstructor
-
-class TrainingServiceImpl implements TrainingProvider {
+public class TrainingServiceImpl implements TrainingProvider {
 
     private final TrainingRepository trainingRepository;
-    private final UserProvider userProvider;
-    TrainingServiceImpl(TrainingRepository trainingRepository, UserProvider userProvider) {
+    private final TrainingMapper trainingMapper;
+
+    @Autowired
+    public TrainingServiceImpl(TrainingRepository trainingRepository, TrainingMapper trainingMapper) {
         this.trainingRepository = trainingRepository;
-        this.userProvider = userProvider;
+        this.trainingMapper = trainingMapper;
     }
 
     @Override
-    public Optional<User> getTraining(final Long trainingId) {
-        throw new UnsupportedOperationException("Not finished yet");
+    public Optional<TrainingDto> getTraining(final Long trainingId) {
+        return trainingRepository.findById(trainingId)
+                .map(trainingMapper::toDto);
     }
 
     @Override
-    public List<Training> getAllTrainings() {
-        return trainingRepository.findAll();
+    public List<TrainingDto> findAllTrainings() {
+        return trainingRepository.findAll().stream()
+                .map(trainingMapper::toDto)
+                .collect(Collectors.toList());
     }
 
-    //TODO: repair
     @Override
-    public List<Training> getAllTrainingsForDedicatedUser(Long userId) {
-
-        if (userProvider.getUser(userId).isPresent()) {
-            return trainingRepository.findAll().stream().filter(training -> training.getUser().getId().equals(userId)).toList();
-        }
-        else {
-            return List.of();
-        }
+    public List<TrainingDto> findTrainingsByUserId(Long userId) {
+        return trainingRepository.findByUserId(userId).stream()
+                .map(trainingMapper::toDto)
+                .collect(Collectors.toList());
     }
 
+    @Override
+    public TrainingDto createTraining(TrainingDto trainingDto) {
+        Training training = trainingMapper.toEntity(trainingDto);
+        Training savedTraining = trainingRepository.save(training);
+        return trainingMapper.toDto(savedTraining);
+    }
+
+    @Override
+    public List<TrainingDto> findTrainingsByActivityType(String activityType) {
+        ActivityType activityTypeEnum = ActivityType.valueOf(activityType.toUpperCase());
+        return trainingRepository.findAllByActivityType(activityTypeEnum).stream()
+                .map(trainingMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<TrainingDto> findCompletedTrainingsByDate(Date date) {
+        return trainingRepository.findAllByEndTimeBefore(date).stream()
+                .map(trainingMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public TrainingDto updateTraining(Long trainingId, TrainingDto trainingDto) {
+        Training training = trainingRepository.findById(trainingId)
+                .orElseThrow(() -> new TrainingNotFoundException(trainingId));
+        training.setDistance(trainingDto.getDistance());
+        // Możesz dodać więcej pól do aktualizacji tutaj
+        Training updatedTraining = trainingRepository.save(training);
+        return trainingMapper.toDto(updatedTraining);
+    }
 }
